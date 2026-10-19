@@ -1,0 +1,65 @@
+{
+  "id": "io.cloudron.custom.mariadb",
+  "title": "MariaDB Server",
+  "author": "MariaDB Foundation",
+  "description": "file://DESCRIPTION.md",
+  "tagline": "Standalone MariaDB server reachable from external hosts",
+  "version": "1.0.0",
+  "upstreamVersion": "11.8.6",
+  "minBoxVersion": "10.0.1",
+  "website": "https://mariadb.org/",
+  "icon": "file://logo.png",
+  "healthCheckPath": "/healthz",
+  "configurePath": "/admin",
+  "httpPort": 8000,
+  "memoryLimit": 1073741824,
+  "checklist": {
+    "create-admin-group": {
+      "message": "Set admins: add Cloudron usernames to MARIADB_ADMINS in /app/data/env.sh, or add users to a Cloudron group named mariadb-admins. Restart the app after editing env.sh."
+    }
+  },
+  "tcpPorts": {
+    "MARIADB_PORT": {
+      "title": "MariaDB Port",
+      "description": "Port for MariaDB client connections (TLS only)",
+      "defaultValue": 3306,
+      "containerPort": 3306
+    }
+  },
+  "persistentDirs": [
+    "/var/lib/mysql"
+  ],
+  "backupCommand": "/app/pkg/backup.sh",
+  "restoreCommand": "/app/pkg/restore.sh",
+  "addons": {
+    "localstorage": {},
+    "tls": {},
+    "oidc": {
+      "loginRedirectUri": "/auth/callback",
+      "logoutRedirectUri": "/",
+      "tokenSignatureAlgorithm": "RS256"
+    },
+    "scim": {},
+    "sendmail": {
+      "requiresValidCertificate": true,
+      "supportsDisplayName": true
+    }
+  },
+  "tags": [
+    "database"
+  ],
+  "changelog": "file://CHANGELOG",
+  "postInstallMessage": "file://POSTINSTALL.md",
+  "manifestVersion": 2,
+  "iconUrl": "https://github.com/BrutalBirdie/MariaDB-Cloudron-App/blob/master/logo.png?raw=true",
+  "packagerName": "James Smith",
+  "packagerUrl": "https://github.com/BrutalBirdie/MariaDB-Cloudron-App",
+  "mediaLinks": [
+    "https://github.com/BrutalBirdie/MariaDB-Cloudron-App/blob/master/screenshots/databases.png?raw=true",
+    "https://github.com/BrutalBirdie/MariaDB-Cloudron-App/blob/master/screenshots/database.png?raw=true",
+    "https://github.com/BrutalBirdie/MariaDB-Cloudron-App/blob/master/screenshots/admin.png?raw=true",
+    "https://github.com/BrutalBirdie/MariaDB-Cloudron-App/blob/master/screenshots/database-phone.png?raw=true"
+  ],
+  "contactEmail": "support@cloudron.io",
+  "packageUrl": "https://github.com/BrutalBirdie/MariaDB-Cloudron-App"
+}

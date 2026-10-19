@@ -1,0 +1,108 @@
+{{define "content"}}
+{{$csrf := .Session.CSRFToken}}
+{{$d := .Data}}{{$role := $d.Role}}
+<div class="page-head"><div><h1>Uploads</h1></div></div>
+{{if not $d.Roles}}
+<section class="card"><p>No database roles are assigned to you yet, so there is nothing to upload into.</p></section>
+{{else}}
+<nav class="pills" aria-label="Role">
+  {{range $d.Roles}}<a href="/roles/{{.}}/uploads" class="mono"{{if eq . $role.Name}} aria-current="page"{{end}}>{{.}}</a>{{end}}
+</nav>
+
+<section class="card">
+  <form id="upload-form" method="post" action="/roles/{{$role.Name}}/uploads" enctype="multipart/form-data" class="drop">
+    <input type="hidden" name="csrf" value="{{$csrf}}">
+    {{icon "upload"}}
+    <p><strong>Upload a dump file for <span class="mono">{{$role.Name}}</span></strong><br>
+    <span class="small muted">SQL dump of one database from mariadb-dump or mysqldump, also compressed as .gz or .zst. Deleted {{$d.KeepDays}} days after upload unless kept.</span></p>
+    <details class="checksum">
+      <summary>{{icon "chevron-right"}}<span>Checksum from where the dump was made, optional</span></summary>
+      <label class="field"><span class="small muted">Output of <span class="mono">sha256sum</span> (Linux, macOS) or <span class="mono">Get-FileHash</span> (PowerShell). The server discards the file if it does not match.</span>
+        <input type="text" name="sha256" class="mono" spellcheck="false" autocomplete="off" placeholder="sha256sum prod.sql.gz">
+      </label>
+    </details>
+    <!-- the server reads the checksum before the file, keep the file input last -->
+    <input type="file" name="file" id="upload-file" required aria-label="Dump file">
+    <button type="submit" class="ib primary with-label">{{icon "upload"}}<span class="lbl">Upload</span></button>
+    <progress id="upload-progress" hidden></progress>
+    <p id="upload-status" class="small muted" aria-live="polite"></p>
+  </form>
+  <p class="hint">Your browser calculates the SHA-256 of the file first, the server checks it after the upload.
+  For very large files, an administrator can copy them with the Cloudron File Manager to <span class="mono">{{$d.Dir}}/</span>, they show up here automatically.</p>
+</section>
+
+<section class="card">
+  <div class="sec-head"><h2>Files of <span class="mono">{{$role.Name}}</span></h2></div>
+  <ul class="list">
+    {{range $d.Uploads}}
+    <li><div class="row-main">
+        <div class="row-title"><span class="mono">{{.FileName}}</span>
+          {{if .Format}}<span class="chip">{{.Format}}</span>{{end}}
+          {{if eq .VerifiedBy "user"}}<span class="chip ok">{{icon "check"}} matches your checksum</span>{{else if eq .VerifiedBy "browser"}}<span class="chip ok">{{icon "check"}} checked</span>{{else if .SHA256}}<span class="chip">not compared</span>{{else}}<span class="chip">{{icon "clock"}} checksum pending</span>{{end}}
+          {{if .Keep}}<span class="chip accent">{{icon "pin"}} kept</span>{{end}}
+        </div>
+        <div class="row-sub">{{bytes .SizeBytes}} · {{utc .FirstSeen}} by {{.UploadedBy}}{{if not .Keep}} · deleted {{utc .Expires}}{{end}}</div>
+        {{with .FormatErr}}<div class="callout danger small">{{.}}</div>{{end}}
+      </div>
+      <div class="btns">
+        <button type="button" class="ib" popovertarget="sheet-import-{{.ID}}" aria-label="Import {{.FileName}}" data-tip="Import {{.FileName}}">{{icon "arrow-down-to-line"}}<span class="lbl">Import</span></button>
+        <form method="post" action="/uploads/{{.ID}}/keep">
+          <input type="hidden" name="csrf" value="{{$csrf}}">
+          <input type="hidden" name="keep" value="{{if .Keep}}0{{else}}1{{end}}">
+          <button type="submit" class="ib" aria-pressed="{{.Keep}}" aria-label="{{if .Keep}}Stop keeping{{else}}Keep, do not delete after {{$d.KeepDays}} days{{end}}" data-tip="{{if .Keep}}Stop keeping{{else}}Keep, do not delete after {{$d.KeepDays}} days{{end}}">{{icon "pin"}}<span class="lbl">Keep</span></button>
+        </form>
+        <form method="post" action="/uploads/{{.ID}}/delete">
+          <input type="hidden" name="csrf" value="{{$csrf}}">
+          <button type="submit" class="ib danger" aria-label="Delete {{.FileName}}" data-tip="Delete {{.FileName}}">{{icon "trash-2"}}<span class="lbl">Delete</span></button>
+        </form>
+      </div>
+    </li>
+    {{else}}
+    <li><span class="muted">No files.</span></li>
+    {{end}}
+  </ul>
+</section>
+
+{{range $d.Uploads}}
+{{$id := print "sheet-import-" .ID}}
+<div popover id="{{$id}}" class="sheet" aria-labelledby="{{$id}}-title">
+  {{template "sheethead" (dict "ID" $id "Icon" "arrow-down-to-line" "Title" "Import" "Name" .FileName)}}
+  <div class="sheet-body">
+    <section>
+      <p class="small">{{bytes .SizeBytes}}{{with .Format}}, {{.}} format{{end}}</p>
+      <p class="small">SHA-256 {{if .SHA256}}<span class="mono wrap">{{.SHA256}}</span>{{else}}is being calculated{{end}}</p>
+      {{if eq .VerifiedBy "user"}}<p class="small">Matches your checksum.</p>{{else if eq .VerifiedBy "browser"}}<p class="small">Matches the checksum your browser calculated.</p>
+      {{else if .SHA256}}
+      <form method="post" action="/uploads/{{.ID}}/verify" class="form">
+        <input type="hidden" name="csrf" value="{{$csrf}}">
+        <label class="field"><span>Compare with your checksum</span><input type="text" name="sha256" class="mono" spellcheck="false" autocomplete="off" placeholder="your SHA-256"></label>
+        <div class="btns"><button type="submit" class="ib with-label">{{icon "check"}}<span class="lbl">Compare</span></button></div>
+      </form>
+      {{end}}
+    </section>
+    <section>
+      {{if .FormatErr}}<div class="callout danger">{{icon "triangle-alert"}}<span>{{.FormatErr}}</span></div>
+      {{else if not $role.Databases}}<p class="muted">This role has no database to import into.</p>
+      {{else}}
+      <form method="post" action="/uploads/{{.ID}}/import" class="form">
+        <input type="hidden" name="csrf" value="{{$csrf}}">
+        <label class="field"><span>Into database</span>
+          <select name="database">{{range $role.Databases}}<option value="{{.}}">{{.}}</option>{{end}}</select>
+        </label>
+        <label class="switch-row"><span>Take a snapshot of the current data first<small>Lets you go back.</small></span><input type="checkbox" class="switch" name="safety_snapshot" checked></label>
+        <label class="switch-row"><span>All or nothing<small>Stops at the first error. Off skips failing statements, for example ones that need admin rights, and loads the rest.</small></span><input type="checkbox" class="switch" name="strict" checked></label>
+        <div class="callout warn">{{icon "triangle-alert"}}<span>Replaces all data in the target database and disconnects its clients. DEFINER clauses, CREATE DATABASE and USE in the file are replaced, everything belongs to role <span class="mono">{{$role.Name}}</span>.</span></div>
+        <label class="field"><span class="small">Type the target database name to confirm</span>
+          <input type="text" name="confirm" class="mono" required autocomplete="off" spellcheck="false">
+        </label>
+        <div class="btns"><button type="submit" class="ib danger solid with-label">{{icon "arrow-down-to-line"}}<span class="lbl">Import</span></button></div>
+      </form>
+      {{end}}
+    </section>
+  </div>
+</div>
+{{end}}
+<script src="/static/vendor/hash-wasm-sha256-4.12.0.umd.min.js"></script>
+<script src="/static/upload.js"></script>
+{{end}}
+{{end}}

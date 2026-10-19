@@ -1,0 +1,52 @@
+{{define "content"}}
+{{$csrf := .Session.CSRFToken}}{{$admin := .Session.IsAdmin}}
+<div class="page-head"><div><h1>My databases</h1></div></div>
+{{if not .Data.Roles}}
+<section class="card"><p>No database roles are assigned to you yet. Ask an administrator to add you or one of your groups as owner.</p></section>
+{{end}}
+<div class="stack">
+{{range .Data.Roles}}
+{{$login := ""}}{{with .Login}}{{$login = .LoginRole}}{{end}}
+<section class="card role" id="role-{{.Name}}">
+  <header class="role-head">
+    <div><span class="eyebrow">Role</span><h2>{{.Name}}</h2></div>
+    <div class="btns">
+      {{if .MaxDatabases}}{{if lt (len .Databases) .MaxDatabases}}
+      <button type="button" class="ib" popovertarget="sheet-newdb-{{.Name}}" aria-label="New database" data-tip="New database">{{icon "plus"}}<span class="lbl">New</span></button>
+      {{else}}
+      <button type="button" class="ib" disabled aria-label="Limit of {{.MaxDatabases}} databases reached" data-tip="Limit of {{.MaxDatabases}} databases reached">{{icon "plus"}}<span class="lbl">New</span></button>
+      {{end}}{{end}}
+      <button type="button" class="ib" popovertarget="sheet-role-{{.Name}}" aria-label="Role settings and password" data-tip="Role settings and password">{{icon "settings"}}<span class="lbl">Settings</span></button>
+    </div>
+  </header>
+  <div class="meta">
+    {{with .Login}}
+    <span class="chip">{{icon "user"}} <span class="mono">{{.LoginRole}}</span></span>
+    {{if eq .Auth "apppw"}}<span class="chip">{{icon "cloud"}} Cloudron app password</span>{{else}}<span class="chip">{{icon "key-round"}} Password set {{ago .RotatedAt}}</span>{{end}}
+    {{else}}
+    <span class="chip warn">{{icon "key-round"}} No login yet</span>
+    {{end}}
+    {{if .MaxDatabases}}<span class="chip">{{icon "database"}} {{len .Databases}} of {{.MaxDatabases}}</span>{{end}}
+    <span class="chip">{{icon "plug"}} {{.ConnLimit}} connections</span>
+  </div>
+  {{if .Databases}}
+  <ul class="dblist">
+    {{range .Databases}}{{$st := index $.Data.Stats .}}
+    <li class="dbrow">
+      <div class="dbname"><a href="/databases/{{.}}">{{.}}</a><span class="sub">{{bytes $st.SizeBytes}} · {{$st.Connections}} open connections</span></div>
+      {{if $login}}{{with connURL $login .}}{{template "copybox" (dict "Text" . "Label" "Copy connection URL")}}{{end}}
+      {{else}}<div class="url empty">{{icon "key-round"}} Create your login in the role settings to get a connection URL.</div>{{end}}
+      <span class="go" aria-hidden="true">{{icon "chevron-right"}}</span>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <p class="muted">This role owns no databases.</p>
+  {{end}}
+</section>
+{{template "rolesheet" (dict "R" . "Admin" false "IsAdmin" $admin "CSRF" $csrf)}}
+{{if and .MaxDatabases (lt (len .Databases) .MaxDatabases)}}{{template "newdbsheet" (dict "R" . "CSRF" $csrf)}}{{end}}
+{{end}}
+</div>
+{{if .Data.Roles}}<p class="hint">Connection URLs leave out your password. Add it in your client or put it in <span class="mono">~/.my.cnf</span>.</p>{{end}}
+{{end}}

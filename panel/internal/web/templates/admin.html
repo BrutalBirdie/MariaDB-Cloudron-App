@@ -1,0 +1,216 @@
+{{define "content"}}
+{{$csrf := .Session.CSRFToken}}
+{{$d := .Data}}
+<div class="page-head"><div><h1>Admin</h1></div></div>
+<nav class="tabs" aria-label="Admin sections">
+  {{range $d.Tabs}}<a class="tab" href="{{if eq .ID "overview"}}/admin{{else}}/admin/{{.ID}}{{end}}"{{if eq .ID $d.Tab}} aria-current="page"{{end}}>{{icon .Icon}}{{.Label}}</a>{{end}}
+</nav>
+
+{{if eq $d.View "overview"}}
+<div class="tiles">
+  <a class="tile link" href="/admin/databases"><span class="k">{{icon "database"}} Databases</span><span class="v">{{len $d.Stats}}</span><span class="s">{{bytes $d.Total.SizeBytes}} in total</span><span class="go" aria-hidden="true">{{icon "chevron-right"}}</span></a>
+  <a class="tile link" href="/admin/connections"><span class="k">{{icon "plug"}} Connections</span><span class="v">{{$d.Total.Connections}}</span><span class="s">of {{$d.MaxConnections}} allowed</span><span class="go" aria-hidden="true">{{icon "chevron-right"}}</span></a>
+  <a class="tile link" href="/admin/snapshots"><span class="k">{{icon "camera"}} Snapshots</span><span class="v">{{$d.Total.Snapshots}}</span><span class="s">{{bytes $d.Total.SnapshotBytes}} in total</span><span class="go" aria-hidden="true">{{icon "chevron-right"}}</span></a>
+  {{with $d.Disk}}
+  <div class="tile"><span class="k">{{icon "hard-drive"}} Data volume</span><span class="v">{{bytes .Used}}</span><span class="s">of {{bytes .Size}}</span><progress class="meter" max="100" value="{{.Percent}}" aria-label="Data volume used">{{.Percent}}%</progress></div>
+  {{end}}
+</div>
+
+{{else if eq $d.View "connections"}}
+<a class="back" href="/admin">{{icon "arrow-left"}} Overview</a>
+<div class="sec-head"><h2 class="with-icon">{{icon "plug"}} Connections</h2><span class="small muted">{{$d.Total.Connections}} of {{$d.MaxConnections}} allowed</span></div>
+{{template "filters" $d}}
+<section class="card">
+  <ul class="list">
+    {{range $d.Connections}}
+    <li><div class="row-main">
+        <div class="row-title"><span class="mono">{{.Login}}</span>
+          {{if eq .Command "Sleep"}}<span class="chip">{{icon "clock"}} idle</span>{{else if eq .Command "Query"}}<span class="chip ok">{{icon "refresh-cw"}} active</span>{{else}}<span class="chip warn">{{icon "triangle-alert"}} {{.Command}}</span>{{end}}
+        </div>
+        <div class="row-sub">{{with .Database}}<span class="mono">{{.}}</span>{{else}}no database selected{{end}} · {{if .ClientAddr}}from <span class="mono">{{.ClientAddr}}</span>{{else}}local socket{{end}}{{with .State}} · {{.}}{{end}}</div>
+        <div class="row-sub">{{if eq .Command "Sleep"}}Idle{{else}}In this state{{end}} for {{duration .StateChange}}</div>
+      </div></li>
+    {{else}}
+    <li><span class="muted">No connections.</span></li>
+    {{end}}
+  </ul>
+</section>
+<p class="hint">Query text is not shown, it can contain passwords or tenant data. Connections of the panel and the snapshot worker are not listed. Remote connections always use TLS 1.3.</p>
+
+{{else if eq $d.View "snapshots"}}
+<a class="back" href="/admin">{{icon "arrow-left"}} Overview</a>
+<div class="sec-head"><h2 class="with-icon">{{icon "camera"}} Snapshots</h2><span class="small muted">{{$d.Total.Snapshots}}, {{bytes $d.Total.SnapshotBytes}} in total</span></div>
+{{template "filters" $d}}
+<section class="card">
+  <ul class="list">
+    {{range $d.Snapshots}}{{template "snaprow" (dict "S" . "Busy" false "ShowDB" true)}}{{else}}
+    <li><span class="muted">No snapshots match.</span></li>
+    {{end}}
+  </ul>
+</section>
+{{range $d.Snapshots}}{{template "snapsheets" (dict "S" . "CSRF" $csrf "Next" "/admin/snapshots")}}{{end}}
+
+{{else if eq $d.View "roles"}}
+<section class="card">
+  <div class="sec-head"><h2>Roles</h2><button type="button" class="ib primary with-label" popovertarget="sheet-newrole">{{icon "plus"}}<span class="lbl">New role</span></button></div>
+  <ul class="list">
+    {{range $d.Roles}}
+    <li><div class="row-main">
+        <div class="row-title"><span class="mono">{{.Name}}</span></div>
+        <div class="meta">{{range .Owners}}<span class="chip">{{if eq .Kind "group"}}{{icon "users"}} group {{else}}{{icon "user"}} {{end}}{{.Display}}</span>{{else}}<span class="chip warn">no owners</span>{{end}}
+          <span class="chip">{{icon "database"}} {{len .Databases}}</span><span class="chip">{{icon "key-round"}} {{len .Logins}} logins</span></div>
+      </div>
+      <div class="btns"><button type="button" class="ib" popovertarget="sheet-role-{{.Name}}" aria-label="Settings of {{.Name}}" data-tip="Settings of {{.Name}}">{{icon "settings"}}<span class="lbl">Settings</span></button></div>
+    </li>
+    {{else}}
+    <li><span class="muted">No roles yet.</span></li>
+    {{end}}
+  </ul>
+</section>
+{{range $d.Roles}}{{template "rolesheet" (dict "R" . "Admin" true "IsAdmin" true "CSRF" $csrf)}}{{end}}
+<div popover id="sheet-newrole" class="sheet" aria-labelledby="sheet-newrole-title">
+  {{template "sheethead" (dict "ID" "sheet-newrole" "Icon" "plus" "Title" "New role")}}
+  <div class="sheet-body">
+    <form method="post" action="/admin/roles" class="form">
+      <input type="hidden" name="csrf" value="{{$csrf}}">
+      <label class="field"><span>Name</span><input type="text" name="name" class="mono" required pattern="[a-z][a-z0-9_]{2,62}" autocomplete="off" spellcheck="false"></label>
+      <label class="field"><span>Owners</span>
+        <textarea name="owners" rows="2" data-principals spellcheck="false" placeholder="user:anna, group:developers"></textarea>
+        <span class="help">Each owner creates an own login in the role settings. Group members have access while they are in the group.</span>
+      </label>
+      <label class="field"><span>Connections per login</span><input type="number" name="conn_limit" value="20" min="1" max="1000"></label>
+      <label class="switch-row"><span>Create a database with the same name</span><input type="checkbox" class="switch" name="with_database" checked></label>
+      <div class="reveal">
+        <label class="switch-row"><span>Owners can create databases<small>Up to the limit below, existing ones count.</small></span><input type="checkbox" class="switch" name="allow_create_db"></label>
+        <label class="field when-checked"><span>Database limit</span><input type="number" name="max_databases" value="3" min="1" max="100"></label>
+      </div>
+      <div class="btns"><button type="submit" class="ib primary with-label">{{icon "plus"}}<span class="lbl">Create role</span></button></div>
+    </form>
+  </div>
+</div>
+<script src="/static/principals.js"></script>
+
+{{else if eq $d.View "databases"}}
+<section class="card">
+  <div class="sec-head"><h2>Databases</h2>{{if $d.Roles}}<button type="button" class="ib primary with-label" popovertarget="sheet-newdb">{{icon "plus"}}<span class="lbl">New database</span></button>{{end}}</div>
+  <ul class="list">
+    {{range $d.Databases}}{{$st := index $d.Stats .Name}}
+    <li class="link-row"><a class="rowlink" href="/databases/{{.Name}}"><div class="row-main">
+        <div class="row-title"><span class="mono">{{.Name}}</span></div>
+        <div class="row-sub">role <span class="mono">{{.Owner}}</span> · {{bytes $st.SizeBytes}} · {{$st.Connections}} connections · {{$st.Snapshots}} snapshots</div>
+      </div><span class="go" aria-hidden="true">{{icon "chevron-right"}}</span></a></li>
+    {{else}}
+    <li><span class="muted">{{if $d.Roles}}No databases yet.{{else}}Create a role first.{{end}}</span></li>
+    {{end}}
+  </ul>
+</section>
+{{if $d.Roles}}
+<div popover id="sheet-newdb" class="sheet" aria-labelledby="sheet-newdb-title">
+  {{template "sheethead" (dict "ID" "sheet-newdb" "Icon" "plus" "Title" "New database")}}
+  <div class="sheet-body">
+    <form method="post" action="/admin/databases" class="form">
+      <input type="hidden" name="csrf" value="{{$csrf}}">
+      <label class="field"><span>Name</span>
+        <input type="text" name="name" class="mono" required pattern="[a-z][a-z0-9_]{2,62}" autocomplete="off" spellcheck="false">
+        <span class="help">Lowercase letters, digits and _, 3 to 63 characters.</span>
+      </label>
+      <label class="field"><span>Owner role</span>
+        <select name="owner">{{range $d.Roles}}<option value="{{.Name}}">{{.Name}}</option>{{end}}</select>
+        <span class="help">Admins can add a database to any role, the role's database limit does not apply.</span>
+      </label>
+      <div class="btns"><button type="submit" class="ib primary with-label">{{icon "plus"}}<span class="lbl">Create database</span></button></div>
+    </form>
+  </div>
+</div>
+{{end}}
+
+{{else if eq $d.View "network"}}
+<section class="card">
+  <form method="post" action="/admin/allowlist" class="form">
+    <input type="hidden" name="csrf" value="{{$csrf}}">
+    <div><h2>Allowed networks</h2><p class="small muted">Remote clients can only connect from these addresses or networks. An empty list blocks all remote connections. One entry per line, for example <span class="mono">203.0.113.10</span> or <span class="mono">2001:db8::/48</span>. Applies to new connections at once, open connections stay.</p></div>
+    <textarea name="allowlist" rows="6" spellcheck="false" aria-label="Allowed networks">{{$d.Allowlist}}</textarea>
+    {{with $d.ClientIP}}<div class="meta"><span class="chip">{{icon "globe"}} You connect to the panel from <span class="mono">{{.}}</span></span></div>{{end}}
+    <div class="btns"><button type="submit" class="ib primary with-label">{{icon "save"}}<span class="lbl">Save and apply</span></button></div>
+  </form>
+</section>
+
+{{else if eq $d.View "notifications"}}
+<section class="card">
+  <div class="sec-head"><h2>Failure notifications</h2>{{if $d.MailReady}}<span class="chip ok">{{icon "check"}} Outgoing mail is set up</span>{{else}}<span class="chip warn">{{icon "triangle-alert"}} No outgoing mail</span>{{end}}</div>
+  {{if $d.MailReady}}
+  <p>Owners turn mails about their databases on in their account settings. {{if eq $d.OptIns 1}}1 user has{{else}}{{$d.OptIns}} users have{{end}} turned them on.</p>
+  {{if $d.TestSent}}<div class="callout info">{{icon "check"}}<span>Test mail sent.</span></div>{{end}}
+  <form method="post" action="/admin/notifications" class="form">
+    <input type="hidden" name="csrf" value="{{$csrf}}">
+    <label class="field"><span>Addresses that get every failure</span>
+      <input type="text" name="notify_to" value="{{$d.NotifyTo}}" placeholder="dba@example.com, ops@example.com" autocomplete="off">
+      <span class="help">Separated by commas. Leave empty to rely on the owners.</span>
+    </label>
+    <div class="btns">
+      <button type="submit" name="action" value="save" class="ib primary with-label">{{icon "save"}}<span class="lbl">Save</span></button>
+      <button type="submit" name="action" value="test" class="ib with-label">{{icon "send"}}<span class="lbl">Send test mail</span></button>
+    </div>
+  </form>
+  {{else}}
+  <p class="muted">The sendmail addon is not available to this app, failure notifications are off.</p>
+  {{end}}
+</section>
+
+{{else if eq $d.View "server"}}
+<form method="post" action="/admin/server" class="card form">
+  <input type="hidden" name="csrf" value="{{$csrf}}">
+  <div class="sec-head"><h2>MariaDB settings</h2><button type="submit" class="ib primary with-label">{{icon "save"}}<span class="lbl">Save</span></button></div>
+  {{if $d.ParamsApplying}}<div class="callout info">{{icon "clock"}}<span>The worker applies the saved values within a few seconds. Reload to see the result.</span></div>{{end}}
+  {{with $d.ParamsError}}<div class="callout danger">{{icon "triangle-alert"}}<span>The last change was not applied: {{.}}</span></div>{{end}}
+  <div>
+    {{range $d.Params}}
+    <div class="param">
+      <label class="name" for="p-{{.Name}}">{{.Name}}</label>
+      <input type="text" id="p-{{.Name}}" name="{{.Name}}" class="mono" value="{{.Value}}" placeholder="default" spellcheck="false" autocomplete="off">
+      <span class="row-sub">{{.Help}} Default {{.Default}}. Allowed {{.Range}}.</span>
+      <div class="meta">
+        {{if .Restart}}<span class="chip warn">{{icon "triangle-alert"}} needs app restart</span>{{else}}<span class="chip ok">{{icon "refresh-cw"}} applies within seconds</span>{{end}}
+        <span class="chip">running {{.Running}}</span>
+      </div>
+    </div>
+    {{end}}
+  </div>
+  <p class="small muted">Leave a field empty for the default. Values are checked against the allowed range before they are written.</p>
+</form>
+<section class="card">
+  <details>
+    <summary>{{icon "chevron-right"}}<h2 class="with-icon">{{icon "lock"}} Managed by the app</h2></summary>
+    <ul class="list">
+      <li><div class="row-main"><span class="mono small">bind_address, port, socket, proxy_protocol_networks</span><span class="row-sub">The allowlist proxy and the Cloudron port mapping depend on them.</span></div></li>
+      <li><div class="row-main"><span class="mono small">ssl_cert, ssl_key, tls_version, require_secure_transport</span><span class="row-sub">TLS 1.3 with the Cloudron certificate is required on the public port.</span></div></li>
+      <li><div class="row-main"><span class="mono small">plugin_load_add, pam_use_cleartext_plugin, skip_name_resolve</span><span class="row-sub">Logins, app passwords and the allowed networks are managed by the panel.</span></div></li>
+      <li><div class="row-main"><span class="mono small">local_infile, secure_file_priv</span><span class="row-sub">Tenants cannot read or write files on the server.</span></div></li>
+      <li><div class="row-main"><span class="mono small">general_log, slow_query_log, log_warnings</span><span class="row-sub">They write SQL text into the app log, which can contain passwords or tenant data.</span></div></li>
+    </ul>
+    <p class="small muted">The app writes these at every start.</p>
+  </details>
+</section>
+
+{{else if eq $d.View "audit"}}
+<section class="card">
+  <ul class="list">
+    {{range $d.Audit}}
+    <li><div class="row-main">
+        <div class="row-title">{{.Action}} <span class="mono">{{.Target}}</span></div>
+        <div class="row-sub">{{utc .At}} · {{.Actor}}{{with .Detail}} · <span class="mono wrap">{{.}}</span>{{end}}</div>
+      </div></li>
+    {{else}}
+    <li><span class="muted">No entries.</span></li>
+    {{end}}
+  </ul>
+</section>
+{{end}}
+{{end}}
+
+{{define "filters"}}
+<nav class="pills" aria-label="Filter">
+  {{$cur := .Filter}}{{$view := .View}}
+  {{range .Filters}}<a href="/admin/{{$view}}{{with .Value}}?f={{.}}{{end}}"{{if .Mono}} class="mono"{{end}}{{if eq .Value $cur}} aria-current="page"{{end}}>{{.Label}}</a>{{end}}
+</nav>
+{{end}}
