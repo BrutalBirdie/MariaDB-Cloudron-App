@@ -1,3 +1,11 @@
+[1.1.0]
+* Audit log has a search, a filter by type and pages
+* Admin groups are set with MARIADB_ADMIN_GROUP in /app/data/env.sh, one or more groups separated by commas. New installs have no admin group, existing installs keep mariadb-admins
+* Name fields explain the allowed characters and why a name is not accepted, capitals become lowercase
+* Admin > Server shows the default value of each empty setting
+* New app icon with the official MariaDB logo
+* Fixed the upload form layout on phones and the account tooltip in the top bar
+
 [1.0.0]
 * Initial version with MariaDB 11.8.6
 * Remote access over TLS 1.3, blocked until a network is added to the allowlist
