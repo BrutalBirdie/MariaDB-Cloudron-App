@@ -217,8 +217,21 @@ func (s *Store) Audit(ctx context.Context, e AuditEntry) error {
 	return err
 }
 
-func (s *Store) ListAudit(ctx context.Context, limit int) ([]AuditEntry, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT created_at, actor, action, target, detail FROM audit_log ORDER BY id DESC LIMIT ?`, limit)
+// AuditQuery filters the audit log. Category is the part of the action
+// before the dot, Search matches any column as a substring.
+type AuditQuery struct {
+	Category, Search string
+	Limit, Offset    int
+}
+
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
+func (s *Store) ListAudit(ctx context.Context, q AuditQuery) ([]AuditEntry, error) {
+	search := likeEscaper.Replace(q.Search)
+	rows, err := s.db.QueryContext(ctx, `SELECT created_at, actor, action, target, detail FROM audit_log
+		WHERE (? = '' OR SUBSTRING_INDEX(action, '.', 1) = ?)
+		  AND (? = '' OR CONCAT_WS(' ', actor, action, target, detail) LIKE CONCAT('%', ?, '%'))
+		ORDER BY id DESC LIMIT ? OFFSET ?`, q.Category, q.Category, search, search, q.Limit, q.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -230,6 +243,23 @@ func (s *Store) ListAudit(ctx context.Context, limit int) ([]AuditEntry, error) 
 			return nil, err
 		}
 		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) AuditCategories(ctx context.Context) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT SUBSTRING_INDEX(action, '.', 1) AS c FROM audit_log ORDER BY c`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
 	}
 	return out, rows.Err()
 }

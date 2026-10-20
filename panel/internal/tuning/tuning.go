@@ -31,6 +31,7 @@ type Param struct {
 	min     func(memMB int64) int64
 	max     func(memMB int64) int64
 	def     func(memMB int64) string
+	defNote string // explains a computed or special default, shown after it
 }
 
 func fixed(n int64) func(int64) int64 { return func(int64) int64 { return n } }
@@ -44,15 +45,15 @@ var Params = []Param{
 	{Name: "max_connections", Kind: Integer, min: fixed(20), max: fixed(2000), def: text("100"),
 		Help: "Upper limit for all connections together. The connection limits of the logins should add up to less."},
 	{Name: "innodb_buffer_pool_size", Kind: Memory, min: fixed(32 * 1024), max: func(m int64) int64 { return m * 1024 * 3 / 4 },
-		def:  func(m int64) string { return fmt.Sprintf("%dMB, a quarter of the app memory", m/4) },
+		def: func(m int64) string { return fmt.Sprintf("%dMB", m/4) }, defNote: "a quarter of the app memory",
 		Help: "Cache for table and index data. Empty follows the memory limit of the app."},
 	{Name: "tmp_table_size", Kind: Memory, Also: []string{"max_heap_table_size"}, min: fixed(1024), max: ofMemory(4), def: text("16MB"),
 		Help: "Largest in-memory temporary table per query, larger ones go to disk. Sets max_heap_table_size to the same value."},
 	{Name: "sort_buffer_size", Kind: Memory, min: fixed(32), max: ofMemory(16), def: text("2MB"),
 		Help: "Memory per sort. Each connection that sorts allocates it."},
-	{Name: "max_statement_time", Kind: Duration, min: fixed(0), max: fixed(24 * 3600), def: text("0, off"),
+	{Name: "max_statement_time", Kind: Duration, min: fixed(0), max: fixed(24 * 3600), def: text("0"), defNote: "off",
 		Help: "Cancels statements that run longer. Snapshots, restores and imports are not affected."},
-	{Name: "idle_transaction_timeout", Kind: Duration, min: fixed(0), max: fixed(7 * 24 * 3600), def: text("0, off"),
+	{Name: "idle_transaction_timeout", Kind: Duration, min: fixed(0), max: fixed(7 * 24 * 3600), def: text("0"), defNote: "off",
 		Help: "Ends sessions that keep a transaction open without doing anything."},
 	{Name: "wait_timeout", Kind: Duration, min: fixed(60), max: fixed(7 * 24 * 3600), def: text("8h"),
 		Help: "Ends idle sessions. Too short breaks connection pools that keep idle connections open."},
@@ -75,7 +76,16 @@ func Names() []string {
 	return out
 }
 
+// Default is the value used when the field is empty.
 func (p Param) Default(memMB int64) string { return p.def(memMB) }
+
+// DefaultHint is Default with its explanation, for the form hint.
+func (p Param) DefaultHint(memMB int64) string {
+	if p.defNote == "" {
+		return p.def(memMB)
+	}
+	return p.def(memMB) + ", " + p.defNote
+}
 
 // Range describes the allowed values for the form hint.
 func (p Param) Range(memMB int64) string {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"mdbpanel/internal/names"
 	"mdbpanel/internal/store"
 )
 
@@ -51,7 +52,9 @@ var viewFuncs = template.FuncMap{
 		}
 		return "manual"
 	},
-	"duration": func(t time.Time) string { return since(time.Since(t)) },
+	"duration":      func(t time.Time) string { return since(time.Since(t)) },
+	"add":           func(a, b int) int { return a + b },
+	"reservedNames": func() string { return strings.Join(names.Reserved(), " ") },
 }
 
 func ago(t time.Time) string {

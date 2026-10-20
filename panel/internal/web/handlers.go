@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -56,14 +57,16 @@ var adminTabs = []adminTab{{"overview", "Overview", "layout-dashboard"}, {"roles
 var adminViews = map[string]string{"overview": "overview", "connections": "overview", "snapshots": "overview", "roles": "roles",
 	"databases": "databases", "network": "network", "notifications": "notifications", "server": "server", "audit": "audit"}
 
+const auditPageSize = 50
+
 type filterOption struct {
 	Value, Label string
 	Mono         bool
 }
 
 type paramView struct {
-	Name, Value, Running, Default, Range, Help string
-	Restart                                  bool
+	Name, Value, Running, Default, DefaultHint, Range, Help string
+	Restart                                                 bool
 }
 
 type adminData struct {
@@ -89,6 +92,9 @@ type adminData struct {
 	Filter         string
 	Filters        []filterOption
 	Audit          []store.AuditEntry
+	Search         string
+	Page           int
+	MorePages      bool
 }
 
 type diskUsage struct {
@@ -245,8 +251,23 @@ func (s *Server) loadAdmin(r *http.Request, d *adminData) error {
 	case "server":
 		return s.loadParams(ctx, d)
 	case "audit":
-		if d.Audit, err = s.store.ListAudit(ctx, 500); err != nil {
+		cats, err := s.store.AuditCategories(ctx)
+		if err != nil {
 			return err
+		}
+		d.Filters = []filterOption{{"", "All", false}}
+		for _, c := range cats {
+			d.Filters = append(d.Filters, filterOption{c, c, false})
+		}
+		d.Search = strings.TrimSpace(r.URL.Query().Get("q"))
+		d.Page, _ = strconv.Atoi(r.URL.Query().Get("p"))
+		d.Page = max(d.Page, 1)
+		if d.Audit, err = s.store.ListAudit(ctx, store.AuditQuery{Category: d.Filter, Search: d.Search,
+			Limit: auditPageSize + 1, Offset: (d.Page - 1) * auditPageSize}); err != nil {
+			return err
+		}
+		if len(d.Audit) > auditPageSize {
+			d.Audit, d.MorePages = d.Audit[:auditPageSize], true
 		}
 	}
 	return nil
@@ -275,7 +296,7 @@ func (s *Server) loadParams(ctx context.Context, d *adminData) error {
 	d.ParamsApplying = requested != ""
 	mem := tuning.MemoryMB()
 	for _, p := range tuning.Params {
-		d.Params = append(d.Params, paramView{Name: p.Name, Value: stored[p.Name], Running: p.FormatServer(running[p.Name]), Default: p.Default(mem),
+		d.Params = append(d.Params, paramView{Name: p.Name, Value: stored[p.Name], Running: p.FormatServer(running[p.Name]), Default: p.Default(mem), DefaultHint: p.DefaultHint(mem),
 			Range: p.Range(mem), Help: p.Help, Restart: p.Restart})
 	}
 	return nil

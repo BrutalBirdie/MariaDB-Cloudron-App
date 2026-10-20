@@ -74,7 +74,7 @@ func splitList(s string) []string {
 }
 
 func admins() access.Admins {
-	return access.Admins{Users: splitList(os.Getenv("MARIADB_ADMINS")), Groups: splitList(env("MARIADB_ADMIN_GROUP", "mariadb-admins"))}
+	return access.Admins{Users: splitList(os.Getenv("MARIADB_ADMINS")), Groups: splitList(os.Getenv("MARIADB_ADMIN_GROUP"))}
 }
 
 func maxSnapshots() int {

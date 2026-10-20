@@ -22,8 +22,8 @@ fi
 if [[ ! -f /app/data/env.sh ]]; then
     cat > /app/data/env.sh <<'EOF'
 # Restart the app after changing these.
-# Members of these Cloudron groups are admins in the panel, separated by commas.
-export MARIADB_ADMIN_GROUP=mariadb-admins
+# Cloudron groups whose members are admins in the panel, separated by commas. Example: "dba, ops"
+export MARIADB_ADMIN_GROUP=""
 # Cloudron usernames that are always admins, separated by commas.
 export MARIADB_ADMINS=""
 # Snapshots kept per database and type (manual, scheduled, before restore), oldest are deleted first.

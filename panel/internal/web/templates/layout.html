@@ -11,7 +11,7 @@
 {{template "icons"}}
 <header class="topbar">
   <div class="wrap">
-    <a class="brand" href="/"><img src="/static/logo.png" alt="" width="32" height="32"> MariaDB</a>
+    <a class="brand" href="/"><picture><source srcset="/static/brand/horizontal-white.svg" media="(prefers-color-scheme: dark)"><img src="/static/brand/horizontal.svg" alt="MariaDB" width="146" height="36"></picture></a>
     {{with .Session}}
     <nav class="nav" aria-label="Main">{{template "navlinks" $}}</nav>
     <button type="button" class="avatar" popovertarget="sheet-account" aria-label="Account of {{.DisplayName}}" data-tip="Account">{{initials .DisplayName}}</button>

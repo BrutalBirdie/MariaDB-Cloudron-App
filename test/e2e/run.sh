@@ -142,7 +142,13 @@ wait_healthy
 expect "env.sh created on first start" "MARIADB_MAX_SNAPSHOTS=7" "$(docker exec "${app}" cat /app/data/env.sh)"
 expect "no remote access before allowlist" "Host '${app_ip}' is not allowed to connect" "$(db x e2e_bob.bob e2e_bob 'select 1')"
 expect "MariaDB itself only listens on localhost" "127.0.0.1:3307" "$(docker exec "${app}" ss -ltn | grep 3307)"
+expect "no admin group by default" '^export MARIADB_ADMIN_GROUP=""$' "$(docker exec "${app}" grep MARIADB_ADMIN_GROUP= /app/data/env.sh)"
+browser noAdminGroup
 
+echo "==> Several admin groups in MARIADB_ADMIN_GROUP"
+docker exec "${app}" sed -i 's/^export MARIADB_ADMIN_GROUP=.*/export MARIADB_ADMIN_GROUP="dba, mariadb-admins"/' /app/data/env.sh
+docker restart "${app}" >/dev/null
+wait_healthy
 browser admin
 expect "test mail delivered" "^1$" "$(mails dba@example.test 'MariaDB: test mail')"
 
@@ -373,6 +379,7 @@ done
 browser bob3
 expect "dropped database has no grants left" "^0$" "$(superuser 'show grants for e2e_bob' | grep -c _two || true)"
 browser eve
+superuser "insert into audit_log (actor, action, target) select 'e2e', 'pager.test', concat('row ', seq) from seq_1_to_60" mdbpanel >/dev/null
 browser admin2
 expect "deleted role and its logins gone" "^0 0$" "$(superuser "select (select count(*) from mysql.global_priv where user like 'e2e\\_eve%'), (select count(*) from mysql.db where user = 'e2e_eve')" | tr '\t' ' ')"
 
