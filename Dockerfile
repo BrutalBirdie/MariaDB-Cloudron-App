@@ -8,6 +8,7 @@ RUN go test ./... && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/p
 
 FROM cloudron/base:6.0.0@sha256:9bed4c8fa880645f8e669041ee28febe941481d00e9445e3e5a5483cb541d09b
 
+# renovate: datasource=deb depName=mariadb-server
 ARG MARIADB_VERSION=1:11.8.6-5ubuntu0.1
 
 # links the GHCR package to the repo - https://docs.github.com/en/packages/learn-github-packages/connecting-a-repository-to-a-package
