@@ -51,7 +51,7 @@
   "changelog": "file://CHANGELOG",
   "postInstallMessage": "file://POSTINSTALL.md",
   "manifestVersion": 2,
-  "iconUrl": "https://github.com/BrutalBirdie/MariaDB-Cloudron-App/blob/master/logo.png?raw=true",
+  "iconUrl": "https://raw.githubusercontent.com/BrutalBirdie/MariaDB-Cloudron-App/refs/heads/master/logo.png",
   "packagerName": "James Smith",
   "packagerUrl": "https://github.com/BrutalBirdie/MariaDB-Cloudron-App",
   "mediaLinks": [
