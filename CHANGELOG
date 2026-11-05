@@ -1,3 +1,6 @@
+[1.1.5]
+* Update golang:1.27.3-trixie Docker digest to 2336eda
+
 [1.1.4]
 * Update golang:1.27.3-trixie Docker digest to c65ecfe
 
